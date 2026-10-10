@@ -41,6 +41,16 @@
         "examDurationInMinutes": 120
       },
       {
+        "id": "cka-003",
+        "assetPath": "assets/exams/cka/003",
+        "name": "CKA Practice Lab - Exam Scenario Pack",
+        "category": "CKA",
+        "description": "Real exam-style scenarios covering RBAC, etcd backup/restore, node maintenance, networking, storage, and troubleshooting.",
+        "warmUpTimeInSeconds": 300,
+        "difficulty": "Hard",
+        "examDurationInMinutes": 120
+      },
+      {
         "id": "cka-001",
         "assetPath": "assets/exams/cka/001",
         "name": "CKA Practice Lab - Core Concepts",

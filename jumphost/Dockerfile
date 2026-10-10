@@ -40,6 +40,22 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/s
     && ./get_helm.sh \
     && rm get_helm.sh
 
+# Install etcdctl (etcd v3 client) for x86_64 and ARM64 architectures
+ENV ETCD_VERSION=v3.5.17
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+    curl -L "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz" -o etcd.tar.gz \
+    && tar -xzf etcd.tar.gz \
+    && mv "etcd-${ETCD_VERSION}-linux-amd64/etcdctl" /usr/local/bin/etcdctl \
+    && chmod +x /usr/local/bin/etcdctl \
+    && rm -rf etcd.tar.gz "etcd-${ETCD_VERSION}-linux-amd64"; \
+    elif [ "$TARGETARCH" = "arm64" ]; then \
+    curl -L "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-arm64.tar.gz" -o etcd.tar.gz \
+    && tar -xzf etcd.tar.gz \
+    && mv "etcd-${ETCD_VERSION}-linux-arm64/etcdctl" /usr/local/bin/etcdctl \
+    && chmod +x /usr/local/bin/etcdctl \
+    && rm -rf etcd.tar.gz "etcd-${ETCD_VERSION}-linux-arm64"; \
+    fi
+
 #override docker daemon to use cfg2group
 RUN echo '{ "exec-opts": ["native.cgroupdriver=cgroupfs"] }' > /etc/docker/daemon.json
 
@@ -85,6 +101,7 @@ EXPOSE 22
 
 RUN echo "export TERM=xterm" >> /home/candidate/.bashrc
 RUN echo "export KUBECONFIG=/home/candidate/.kube/kubeconfig" >> /home/candidate/.bashrc
+RUN echo "export ETCDCTL_API=3" >> /home/candidate/.bashrc
 RUN echo "PS1='\[\e[32m\]\u@\h:\w\$ \[\e[0m\]'" >> /home/candidate/.bashrc
 
 #set kubectl autocompletion
