@@ -54,7 +54,7 @@ async function createExam(examData) {
     
     // Determine number of nodes required for the exam (default to 1 if not specified)
     const nodeCount = examData.config.workerNodes || 1;
-    // k3d cluster profile for the lab (kind-cluster/k3d/<name>.k3d.yaml)
+    // k3d cluster profile for the lab (kind-cluster/k3d/<name>.yaml)
     const clusterProfile = examData.config.clusterProfile || 'default';
     
     // Set up the exam environment asynchronously

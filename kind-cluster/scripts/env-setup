@@ -25,7 +25,7 @@ case "$NUM_WORKERS" in
     ''|*[!0-9]*) echo "ERROR: --workers must be a non-negative integer"; exit 1 ;;
 esac
 
-PROFILE_FILE="$PROFILE_DIR/$PROFILE.k3d.yaml"
+PROFILE_FILE="$PROFILE_DIR/$PROFILE.yaml"
 case "$PROFILE" in
     ''|*[!a-z0-9-]*) echo "ERROR: invalid profile '$PROFILE'"; exit 1 ;;
 esac

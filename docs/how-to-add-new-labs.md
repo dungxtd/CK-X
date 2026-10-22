@@ -69,7 +69,7 @@ Create a `config.json` file in your lab directory with the following structure:
 Parameters:
 - `lab`: Unique identifier for the lab (should match directory structure)
 - `workerNodes`: Number of worker nodes required for this lab
-- `clusterProfile` (optional): k3d cluster profile from `kind-cluster/k3d/` (`<name>.k3d.yaml`). Defaults to `default` (k3s on SQLite). Use `etcd` for labs that need a real etcd (backup/restore with `etcdctl`)
+- `clusterProfile` (optional): k3d cluster profile from `kind-cluster/k3d/` (`<name>.yaml`). Defaults to `default` (k3s on SQLite). Use `etcd` for labs that need a real etcd (backup/restore with `etcdctl`)
 - `answers`: Path to answers markdown file
 - `questions`: sessment JSON filename
 - `totalMarks`: Maximum possible score

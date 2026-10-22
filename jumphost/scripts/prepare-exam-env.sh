@@ -11,6 +11,8 @@ log() {
 NUMBER_OF_NODES=1
 EXAM_ID=""
 CLUSTER_PROFILE=default
+# Docker ENV is not visible in the ssh session the facilitator runs this in
+CLUSTER_NAME=${CLUSTER_NAME:-cluster}
 
 while [ $# -gt 0 ]; do
   case "$1" in
