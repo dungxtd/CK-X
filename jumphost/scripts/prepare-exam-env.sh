@@ -7,12 +7,23 @@ log() {
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
 }
 
-# Set defaults
-NUMBER_OF_NODES=${1:-1}
-EXAM_ID=${2:-""}
+# Usage: prepare-exam-env [--nodes N] [--exam-id ID] [--profile PROFILE]
+NUMBER_OF_NODES=1
+EXAM_ID=""
+CLUSTER_PROFILE=default
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --nodes)   NUMBER_OF_NODES=$2; shift 2 ;;
+    --exam-id) EXAM_ID=$2; shift 2 ;;
+    --profile) CLUSTER_PROFILE=$2; shift 2 ;;
+    *) log "ERROR: unknown argument: $1"; exit 1 ;;
+  esac
+done
 
 echo "Exam ID: $EXAM_ID"
 echo "Number of nodes: $NUMBER_OF_NODES"
+echo "Cluster profile: $CLUSTER_PROFILE"
 
 #check docker is running
 if ! docker info > /dev/null 2>&1; then
@@ -38,9 +49,14 @@ if ! [[ "$NUMBER_OF_NODES" =~ ^[0-9]+$ ]]; then
   log "ERROR: Number of nodes must be a positive integer"
   exit 1
 fi
+# The profile is forwarded through a remote shell, so only allow safe names
+if ! [[ "$CLUSTER_PROFILE" =~ ^[a-z0-9-]+$ ]]; then
+  log "ERROR: invalid cluster profile: $CLUSTER_PROFILE"
+  exit 1
+fi
 
 # Setup kind cluster
-ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null candidate@k8s-api-server "env-setup $NUMBER_OF_NODES $CLUSTER_NAME"
+ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null candidate@k8s-api-server "env-setup --workers $NUMBER_OF_NODES --name $CLUSTER_NAME --profile $CLUSTER_PROFILE"
 
 #Pull assets from URL
 curl facilitator:3000/api/v1/exams/$EXAM_ID/assets -o assets.tar.gz

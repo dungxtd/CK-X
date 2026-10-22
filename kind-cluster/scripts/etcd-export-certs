@@ -1,0 +1,47 @@
+#!/bin/sh
+exec >> /proc/1/fd/1 2>&1
+# ===============================================================================
+#   Export etcd TLS client certs to the shared kube volume so the jumphost
+#   can run etcdctl. Used by env-setup for the "etcd" cluster profile.
+#   Usage: etcd-export-certs [CLUSTER_NAME]
+# ===============================================================================
+
+CLUSTER_NAME=${1:-cluster}
+
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Exporting etcd TLS certs to shared kube volume..."
+
+SERVER_CONTAINER=$(docker ps --filter "name=k3d-${CLUSTER_NAME}-server-0" --format "{{.Names}}" | head -1)
+
+if [ -z "$SERVER_CONTAINER" ]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: could not find k3d server container for etcd cert export, skipping"
+else
+    ETCD_CERT_WAIT=0
+    ETCD_CERTS_READY=0
+    while [ $ETCD_CERT_WAIT -lt 60 ]; do
+        if docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
+            && docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/client.crt \
+            && docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/client.key; then
+            ETCD_CERTS_READY=1
+            break
+        fi
+        ETCD_CERT_WAIT=$((ETCD_CERT_WAIT+5))
+        echo "$(date '+%Y-%m-%d %H:%M:%S') | [WAITING] etcd TLS certs not present in $SERVER_CONTAINER yet... (${ETCD_CERT_WAIT}s)"
+        sleep 5
+    done
+
+    if [ "$ETCD_CERTS_READY" = "1" ]; then
+        mkdir -p /home/candidate/.kube/etcd-certs
+        if docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt" /home/candidate/.kube/etcd-certs/ca.crt \
+            && docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/client.crt" /home/candidate/.kube/etcd-certs/client.crt \
+            && docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/client.key" /home/candidate/.kube/etcd-certs/client.key; then
+            chmod 644 /home/candidate/.kube/etcd-certs/*
+            echo "$(date '+%Y-%m-%d %H:%M:%S') | ✅ etcd TLS certs exported to /home/candidate/.kube/etcd-certs"
+        else
+            echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: docker cp of etcd TLS certs failed, continuing without them"
+        fi
+    else
+        echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: timed out waiting for etcd TLS certs, continuing without them"
+    fi
+fi
+
+exit 0

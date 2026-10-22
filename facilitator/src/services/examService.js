@@ -54,10 +54,12 @@ async function createExam(examData) {
     
     // Determine number of nodes required for the exam (default to 1 if not specified)
     const nodeCount = examData.config.workerNodes || 1;
+    // k3d cluster profile for the lab (kind-cluster/k3d/<name>.k3d.yaml)
+    const clusterProfile = examData.config.clusterProfile || 'default';
     
     // Set up the exam environment asynchronously
     // This will happen in the background while the response is sent back to the client
-    setupExamEnvironmentAsync(examId, nodeCount);
+    setupExamEnvironmentAsync(examId, nodeCount, clusterProfile);
     
     // send metrics to metric server
     MetricService.sendMetrics(examId, {
@@ -94,10 +96,10 @@ async function createExam(examData) {
  * @param {string} examId - The exam ID
  * @param {number} nodeCount - Number of nodes to prepare
  */
-async function setupExamEnvironmentAsync(examId, nodeCount) {
+async function setupExamEnvironmentAsync(examId, nodeCount, clusterProfile) {
   try {
     // Call the jumphost service to set up the exam environment
-    const result = await jumphostService.setupExamEnvironment(examId, nodeCount);     
+    const result = await jumphostService.setupExamEnvironment(examId, nodeCount, clusterProfile);     
     
     if (!result.success) {
       logger.error(`Failed to set up exam environment for exam ${examId}`, {

@@ -37,7 +37,7 @@ describe('Jumphost Service', () => {
       expect(redisClient.persistExamStatus).toHaveBeenNthCalledWith(2, 'test-exam-id', 'READY');
 
       // Verify SSH command execution
-      expect(sshService.executeCommand).toHaveBeenCalledWith('prepare-exam-env 2');
+      expect(sshService.executeCommand).toHaveBeenCalledWith('prepare-exam-env --nodes 2 --exam-id test-exam-id --profile default');
 
       // Verify result
       expect(result).toEqual({

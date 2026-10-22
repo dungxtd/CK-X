@@ -19,6 +19,10 @@ COPY scripts/ /usr/local/bin/
 RUN chmod +x /usr/local/bin/env-setup
 RUN chmod +x /usr/local/bin/env-cleanup
 RUN chmod +x /usr/local/bin/k3d-install.sh
+RUN chmod +x /usr/local/bin/etcd-export-certs
+
+# k3d cluster profiles selected by env-setup --profile
+COPY k3d/ /usr/local/share/k3d-profiles/
 
 ENV KIND_DEFAULT_VERSION=v1.32.3
 

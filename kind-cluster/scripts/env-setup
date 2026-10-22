@@ -2,12 +2,37 @@
 exec >> /proc/1/fd/1 2>&1
 # ===============================================================================
 #   K3D Cluster Creation
-#   this script access the parametter i.e num of nodes i.e NUM_WORKERS
-#   example command to run this script  ./setup.sh 3 cluster1
+#   Usage:   env-setup [--workers N] [--name NAME] [--profile PROFILE]
+#   Example: env-setup --workers 3 --name cluster --profile etcd
+#   PROFILE is a k3d config in $PROFILE_DIR (default, etcd)
 # ===============================================================================
 
-NUM_WORKERS=${1:-0}  # Default to 1 worker if not provided
-CLUSTER_NAME=${2:-cluster}
+NUM_WORKERS=0
+CLUSTER_NAME=cluster
+PROFILE=default
+PROFILE_DIR=/usr/local/share/k3d-profiles
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --workers) NUM_WORKERS=$2; shift 2 ;;
+        --name)    CLUSTER_NAME=$2; shift 2 ;;
+        --profile) PROFILE=$2; shift 2 ;;
+        *) echo "Unknown argument: $1"; exit 1 ;;
+    esac
+done
+
+case "$NUM_WORKERS" in
+    ''|*[!0-9]*) echo "ERROR: --workers must be a non-negative integer"; exit 1 ;;
+esac
+
+PROFILE_FILE="$PROFILE_DIR/$PROFILE.k3d.yaml"
+case "$PROFILE" in
+    ''|*[!a-z0-9-]*) echo "ERROR: invalid profile '$PROFILE'"; exit 1 ;;
+esac
+if [ ! -f "$PROFILE_FILE" ]; then
+    echo "ERROR: unknown profile '$PROFILE' (no $PROFILE_FILE)"
+    exit 1
+fi
 
 # Check if k3d is installed, if not install it
 if ! command -v k3d &> /dev/null; then
@@ -40,53 +65,13 @@ if ! command -v k3d &> /dev/null; then
 fi
 
 
-# Delete cluster config if exists
-if [ -f "k3d-config.yaml" ]; then  
-    echo "k3d-config.yaml already exists, deleting it"
-    rm -f k3d-config.yaml
-fi
-
-# Generate K3d config
-cat <<EOF > /tmp/k3d-config.yaml
-apiVersion: k3d.io/v1alpha5
-kind: Simple
-metadata:
-  name: $CLUSTER_NAME
-servers: 1
-agents: $NUM_WORKERS
-kubeAPI:
-  host: "127.0.0.1"
-  hostPort: "6443"
-options:
-  k3s:
-    extraArgs:
-      - arg: "--tls-san=k8s-api-server"
-        nodeFilters:
-          - server:*
-      - arg: "--tls-san=127.0.0.1"
-        nodeFilters:
-          - server:*
-      - arg: "--tls-san=localhost"
-        nodeFilters:
-          - server:*
-      - arg: "--cluster-init"
-        nodeFilters:
-          - server:*
-ports:
-  - port: 2379:2379
-    nodeFilters:
-      - server:0
-EOF
-
-echo "Cluster config with $NUM_WORKERS worker nodes generated: /tmp/k3d-config.yaml"
-
 echo "$(date '+%Y-%m-%d %H:%M:%S') | Creating K3d cluster with configuration..."
 echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Name:  $CLUSTER_NAME"
-echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Config: /tmp/k3d-config.yaml"
+echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Profile: $PROFILE_FILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') | └── Number of nodes: $((NUM_WORKERS + 1)) (1 server + $NUM_WORKERS agents)"
 
 # Create k3d cluster
-k3d cluster create --config /tmp/k3d-config.yaml
+k3d cluster create "$CLUSTER_NAME" --config "$PROFILE_FILE" --agents "$NUM_WORKERS"
 
 # ===============================================================================
 #   Cluster Readiness Check
@@ -104,44 +89,14 @@ done
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') | ✅ K3d cluster '$CLUSTER_NAME' is up and running!"
 
-# ===============================================================================
-#   Export etcd TLS material for jumphost (best-effort, non-fatal on failure)
-# ===============================================================================
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Exporting etcd TLS certs to shared kube volume..."
-
-SERVER_CONTAINER=$(docker ps --filter "name=k3d-${CLUSTER_NAME}-server-0" --format "{{.Names}}" | head -1)
-
-if [ -z "$SERVER_CONTAINER" ]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: could not find k3d server container for etcd cert export, skipping"
-else
-    ETCD_CERT_WAIT=0
-    ETCD_CERTS_READY=0
-    while [ $ETCD_CERT_WAIT -lt 60 ]; do
-        if docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/server-ca.crt \
-            && docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/client.crt \
-            && docker exec "$SERVER_CONTAINER" test -f /var/lib/rancher/k3s/server/tls/etcd/client.key; then
-            ETCD_CERTS_READY=1
-            break
-        fi
-        ETCD_CERT_WAIT=$((ETCD_CERT_WAIT+5))
-        echo "$(date '+%Y-%m-%d %H:%M:%S') | [WAITING] etcd TLS certs not present in $SERVER_CONTAINER yet... (${ETCD_CERT_WAIT}s)"
-        sleep 5
-    done
-
-    if [ "$ETCD_CERTS_READY" = "1" ]; then
-        mkdir -p /home/candidate/.kube/etcd-certs
-        if docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/server-ca.crt" /home/candidate/.kube/etcd-certs/ca.crt \
-            && docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/client.crt" /home/candidate/.kube/etcd-certs/client.crt \
-            && docker cp "${SERVER_CONTAINER}:/var/lib/rancher/k3s/server/tls/etcd/client.key" /home/candidate/.kube/etcd-certs/client.key; then
-            chmod 644 /home/candidate/.kube/etcd-certs/*
-            echo "$(date '+%Y-%m-%d %H:%M:%S') | ✅ etcd TLS certs exported to /home/candidate/.kube/etcd-certs"
-        else
-            echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: docker cp of etcd TLS certs failed, continuing without them"
-        fi
-    else
-        echo "$(date '+%Y-%m-%d %H:%M:%S') | WARNING: timed out waiting for etcd TLS certs, continuing without them"
-    fi
+if [ "$PROFILE" = "etcd" ]; then
+    etcd-export-certs "$CLUSTER_NAME"
+    # Only the server has a static IP; agents/serverlb take dynamic ones and can
+    # grab it if dockerd restarts them first. Keep them down on daemon restart,
+    # entrypoint.sh starts them after the server via "k3d cluster start".
+    docker update --restart=no $(docker ps -aq \
+        --filter "label=k3d.cluster=$CLUSTER_NAME" --filter "label=k3d.role=agent") \
+        "k3d-$CLUSTER_NAME-serverlb" > /dev/null
 fi
 
 # ===============================================================================

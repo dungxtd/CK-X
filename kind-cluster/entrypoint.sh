@@ -44,6 +44,12 @@ adduser -S -D -H -s /sbin/nologin -G sshd sshd
 echo "$(date '+%Y-%m-%d %H:%M:%S') | [INFO] Installing k3d"
 TAG=v5.8.3 bash /usr/local/bin/k3d-install.sh
 
+# Bring back clusters that survived a container restart. k3d starts servers
+# before agents, which etcd-profile clusters rely on (see env-setup).
+for cluster in $(k3d cluster list --no-headers 2>/dev/null | awk '{print $1}'); do
+    k3d cluster start "$cluster"
+done
+
 sleep 10
 touch /ready
 

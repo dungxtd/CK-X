@@ -1,0 +1,20 @@
+# Default exam cluster: k3s on its built-in SQLite datastore.
+# Cluster name and agent count are passed on the k3d command line by env-setup.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+servers: 1
+kubeAPI:
+  host: "127.0.0.1"
+  hostPort: "6443"
+options:
+  k3s:
+    extraArgs:
+      - arg: "--tls-san=k8s-api-server"
+        nodeFilters:
+          - server:*
+      - arg: "--tls-san=127.0.0.1"
+        nodeFilters:
+          - server:*
+      - arg: "--tls-san=localhost"
+        nodeFilters:
+          - server:*

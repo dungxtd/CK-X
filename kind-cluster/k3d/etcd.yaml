@@ -1,0 +1,30 @@
+# Exam cluster on embedded etcd, for labs that back up / restore etcd.
+# Cluster name and agent count are passed on the k3d command line by env-setup.
+apiVersion: k3d.io/v1alpha5
+kind: Simple
+servers: 1
+# etcd stores the server's peer URL by IP. A k3d-managed subnet gives every
+# node a static IP, so the server keeps its etcd membership across restarts.
+subnet: "172.28.0.0/16"
+kubeAPI:
+  host: "127.0.0.1"
+  hostPort: "6443"
+ports:
+  - port: 2379:2379
+    nodeFilters:
+      - server:0
+options:
+  k3s:
+    extraArgs:
+      - arg: "--tls-san=k8s-api-server"
+        nodeFilters:
+          - server:*
+      - arg: "--tls-san=127.0.0.1"
+        nodeFilters:
+          - server:*
+      - arg: "--tls-san=localhost"
+        nodeFilters:
+          - server:*
+      - arg: "--cluster-init"
+        nodeFilters:
+          - server:*

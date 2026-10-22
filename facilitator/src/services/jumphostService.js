@@ -23,9 +23,10 @@ const MetricService = require('./metricService');
  * 
  * @param {string} examId - The ID of the exam to prepare
  * @param {number} nodeCount - The number of nodes to prepare (default: 1)
+ * @param {string} clusterProfile - k3d cluster profile name (default: 'default')
  * @returns {Promise<Object>} Result object with success status and data
  */
-async function setupExamEnvironment(examId, nodeCount = 1) {
+async function setupExamEnvironment(examId, nodeCount = 1, clusterProfile = 'default') {
   try {
     // Update exam status to PREPARING
     await redisClient.persistExamStatus(examId, 'PREPARING');
@@ -35,7 +36,7 @@ async function setupExamEnvironment(examId, nodeCount = 1) {
     await remoteDesktopService.restartVncSession();
 
     // Execute the prepare-exam-env command on the jumphost
-    const command = `prepare-exam-env ${nodeCount} ${examId}`;
+    const command = `prepare-exam-env --nodes ${nodeCount} --exam-id ${examId} --profile ${clusterProfile}`;
     
     logger.info(`Executing command on jumphost: ${command}`);
     const result = await sshService.executeCommand(command);
