@@ -47,7 +47,7 @@ volumeBindingMode: WaitForFirstConsumer
 EOF
 
 kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
-kubectl patch storageclass local-path -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
 
 echo "Implementing Question 3: Manual Storage Configuration"
 cat <<'EOF' | kubectl apply -f -
@@ -69,7 +69,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - k3d-cluster-agent-0
+          - k8s-worker
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -147,7 +147,7 @@ spec:
 EOF
 
 echo "Implementing Question 5: Node Affinity Configuration"
-kubectl label node k3d-cluster-agent-1 disk=ssd
+kubectl label node k8s-worker2 disk=ssd
 
 cat <<'EOF' | kubectl apply -f -
 apiVersion: apps/v1
@@ -210,7 +210,7 @@ spec:
 EOF
 
 echo "Implementing Question 7: Node Taints and Tolerations"
-kubectl taint node k3d-cluster-agent-1 special-workload=true:NoSchedule
+kubectl taint node k8s-worker2 special-workload=true:NoSchedule
 
 cat <<'EOF' | kubectl apply -f -
 apiVersion: apps/v1

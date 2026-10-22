@@ -14,8 +14,8 @@ PODS=$(kubectl get pods -n scheduling -l app=app-scheduling -o jsonpath='{.items
 # Check each pod's node placement
 for POD in $PODS; do
     NODE=$(kubectl get pod $POD -n scheduling -o jsonpath='{.spec.nodeName}')
-    if [[ "$NODE" != "k3d-cluster-agent-1" ]]; then
-        echo "Pod $POD is running on wrong node. Expected k3d-cluster-agent-1, got $NODE"
+    if [[ "$NODE" != "k8s-worker2" ]]; then
+        echo "Pod $POD is running on wrong node. Expected k8s-worker2, got $NODE"
         exit 1
     fi
 done

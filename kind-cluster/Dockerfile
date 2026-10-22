@@ -16,16 +16,32 @@ RUN cp /usr/local/bin/dockerd-entrypoint.sh /usr/local/bin/startup.sh
 COPY scripts/ /usr/local/bin/
 
 #make scripts executable
-RUN chmod +x /usr/local/bin/env-setup
-RUN chmod +x /usr/local/bin/env-cleanup
-RUN chmod +x /usr/local/bin/k3d-install.sh
-RUN chmod +x /usr/local/bin/etcd-export-certs
+RUN chmod +x /usr/local/bin/env-setup /usr/local/bin/env-cleanup /usr/local/bin/etcd-export-certs
 
-# k3d cluster profiles selected by env-setup --profile
-COPY k3d/ /usr/local/share/k3d-profiles/
-COPY registries.yaml /usr/local/share/k3d-registries.yaml
+# Exam clusters are kind (kubeadm) clusters. Keep the node version in step
+# with kubectl/etcdctl in jumphost/Dockerfile.
+ENV KIND_VERSION=v0.33.0 \
+    KUBECTL_VERSION=v1.35.8 \
+    METRICS_SERVER_VERSION=v0.9.0 \
+    KIND_NODE_IMAGE=kindest/node:v1.35.8@sha256:07b2536e30b803ed61d1677a79df6115f798ce64c80f9e22f6ed45afd09323c0 \
+    CKX_NODE_IMAGE=ckx/node:v1.35.8
+# env-setup runs over ssh, which does not see the image ENV
+RUN env | grep -E '^(KIND_NODE_IMAGE|CKX_NODE_IMAGE)=' > /etc/ckx.env
 
-ENV KIND_DEFAULT_VERSION=v1.32.3
+RUN arch="${TARGETARCH:-amd64}" \
+ && curl -fsSLo /usr/local/bin/kind "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-${arch}" \
+ && curl -fsSLo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${arch}/kubectl" \
+ && chmod +x /usr/local/bin/kind /usr/local/bin/kubectl
+
+# Node image with sshd (built into dind on first start), containerd mirror
+# config mounted into every node, and metrics-server (kind has none; the
+# kubelet certs are self-signed, hence --kubelet-insecure-tls)
+COPY node/ /usr/local/share/ckx/node/
+COPY containerd/certs.d/ /usr/local/share/ckx/certs.d/
+RUN curl -fsSL "https://github.com/kubernetes-sigs/metrics-server/releases/download/${METRICS_SERVER_VERSION}/components.yaml" \
+      | sed 's/^\( *\)- --secure-port=10250$/&\n\1- --kubelet-insecure-tls/' \
+      > /usr/local/share/ckx/metrics-server.yaml \
+ && grep -q -- '--kubelet-insecure-tls' /usr/local/share/ckx/metrics-server.yaml
 
 RUN apk add --no-cache openssh-server
 RUN apk add bash 

@@ -24,8 +24,8 @@ RUN apt-get update && apt-get install -y \
 ARG TARGETARCH
 
 #install kubectl for x86_64 and ARM64 architectures
-# Pinned to the exam cluster version (kind-cluster/k3d/*.yaml); kubectl supports +/-1 minor skew
-ENV KUBECTL_VERSION=v1.35.9
+# Pinned to the exam cluster version (KIND_NODE_IMAGE in kind-cluster/Dockerfile)
+ENV KUBECTL_VERSION=v1.35.8
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && chmod +x kubectl \
@@ -43,7 +43,8 @@ RUN curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/s
     && rm get_helm.sh
 
 # Install etcdctl (etcd v3 client) for x86_64 and ARM64 architectures
-ENV ETCD_VERSION=v3.5.17
+# Same version as the kubeadm etcd of the exam clusters
+ENV ETCD_VERSION=v3.6.6
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
     curl -L "https://github.com/etcd-io/etcd/releases/download/${ETCD_VERSION}/etcd-${ETCD_VERSION}-linux-amd64.tar.gz" -o etcd.tar.gz \
     && tar -xzf etcd.tar.gz \
@@ -103,7 +104,13 @@ EXPOSE 22
 
 RUN echo "export TERM=xterm" >> /home/candidate/.bashrc
 RUN echo "export KUBECONFIG=/home/candidate/.kube/kubeconfig" >> /home/candidate/.bashrc
-RUN echo "export ETCDCTL_API=3" >> /home/candidate/.bashrc
+
+# ssh <node> reaches the exam cluster nodes; the per-exam host entries are
+# written by env-setup to the shared kube volume
+RUN mkdir -p /home/candidate/.ssh \
+ && printf '%s\n' 'Include /home/candidate/.kube/ssh_config' '' 'Host *' \
+      '  StrictHostKeyChecking no' '  UserKnownHostsFile /dev/null' '  LogLevel ERROR' \
+      > /home/candidate/.ssh/config
 RUN echo "PS1='\[\e[32m\]\u@\h:\w\$ \[\e[0m\]'" >> /home/candidate/.bashrc
 
 #set kubectl autocompletion
@@ -116,8 +123,6 @@ RUN echo "source /usr/share/bash-completion/bash_completion" >> /home/candidate/
 #start ssh service
 RUN useradd -r -s /usr/sbin/nologin sshd
 # RUN service ssh start
-
-ENV CLUSTER_NAME=cluster
 
 # Start SSH and Minikube on container start
 CMD ["/bin/bash", "-c", "service ssh start && dockerd & tail -f /dev/null"]

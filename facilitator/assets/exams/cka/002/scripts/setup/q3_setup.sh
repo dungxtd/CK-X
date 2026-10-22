@@ -8,6 +8,6 @@ kubectl create namespace manual-storage --dry-run=client -o yaml | kubectl apply
 mkdir -p /mnt/data
 
 # Label the node for identification
-kubectl label node k3d-cluster-agent-0 kubernetes.io/hostname=k3d-cluster-agent-0 --overwrite
+kubectl label node k8s-worker kubernetes.io/hostname=k8s-worker --overwrite
 
 echo "Setup completed for Question 3" 

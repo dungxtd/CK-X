@@ -30,8 +30,8 @@ fi
 
 # Validate node affinity
 NODE_HOSTNAME=$(kubectl get pv manual-pv -o jsonpath='{.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions[?(@.key=="kubernetes.io/hostname")].values[0]}')
-if [[ "$NODE_HOSTNAME" != "k3d-cluster-agent-0" ]]; then
-    echo "Incorrect node affinity. Expected 'k3d-cluster-agent-0', got '$NODE_HOSTNAME'"
+if [[ "$NODE_HOSTNAME" != "k8s-worker" ]]; then
+    echo "Incorrect node affinity. Expected 'k8s-worker', got '$NODE_HOSTNAME'"
     exit 1
 fi
 

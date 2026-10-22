@@ -54,9 +54,9 @@ ETCDCTL_API=3 etcdctl snapshot restore /tmp/exam/etcd-snapshot.db \
 ```
 
 ### Environment-specific adaptation
-On the real CKA exam you would normally run these commands **on the control-plane node itself**, with etcd listening on `https://127.0.0.1:2379` and certs under `/etc/kubernetes/pki/etcd/`. In this simulator, `jumphost` has no SSH/node-level access into the k3d server container, so the infra was adapted (see `kind-cluster/scripts/env-setup`) to run k3s with a real etcd datastore (`--cluster-init`), expose etcd's client port at `k8s-api-server:2379` over the internal Docker network, and copy the etcd TLS material into the shared `kube-config` volume at `/home/candidate/.kube/etcd-certs/`. Use that endpoint and those cert paths instead of the "real exam" values.
+On the real CKA exam you run these commands **on the control-plane node itself** (`ssh k8s-control-plane` here), with etcd listening on `https://127.0.0.1:2379` and certs under `/etc/kubernetes/pki/etcd/`. That works in this simulator too. For convenience the jumphost can also reach etcd at `k8s-api-server:2379`, with a client cert copied to `/home/candidate/.kube/etcd-certs/` (see `kind-cluster/scripts/etcd-export-certs`); the commands above use that.
 
-Also note: because there is no node-level access to swap the restored data directory into the live etcd/k3s server process, verification in this lab only checks that `etcdctl snapshot restore` produced a **structurally valid** etcd data directory (i.e. it contains a `member/snap` subdirectory) - it does not, and cannot, verify that the restored data was live-applied back into the running cluster.
+Also note: verification in this lab only checks that `etcdctl snapshot restore` produced a **structurally valid** etcd data directory (i.e. it contains a `member/snap` subdirectory). To practise the full restore, ssh to `k8s-control-plane` and point `/etc/kubernetes/manifests/etcd.yaml` at the restored data directory.
 
 ## Question 4: NetworkPolicy Restricting Cross-Namespace Access
 
@@ -200,7 +200,7 @@ spec:
 ```
 
 ### Why this works
-A `hostPath` PV binds directly to a path on whichever node the PV ends up mounted on - suitable for single-node or test scenarios (like this simulator's k3d cluster) but not for production multi-node clusters, since the data is not available if a pod is rescheduled to a different node.
+A `hostPath` PV binds directly to a path on whichever node the PV ends up mounted on - suitable for single-node or test scenarios (like this simulator's kind cluster) but not for production multi-node clusters, since the data is not available if a pod is rescheduled to a different node.
 
 ## Question 11: Extracting Matching Log Lines
 
@@ -296,7 +296,7 @@ kubectl patch pvc pv-volume -n storage-pvc \
 ```
 
 ### Environment-specific adaptation
-The real CKA exam curriculum references the `csi-hostpath-driver` for this style of question. This simulator has no CSI driver pre-installed cluster-wide (by design - see `docs/how-to-add-new-labs.md` conventions), so this lab uses k3d's built-in `rancher.io/local-path` provisioner instead, which supports the same dynamic-provisioning and `allowVolumeExpansion` mechanics needed to complete the task. Also note `rancher.io/local-path` does not actually perform live filesystem expansion the way some CSI drivers do - verification here (matching the real exam's own grading behavior) only checks that the PVC's **declared/requested** size was patched to `70Mi`, not that the underlying hostPath filesystem was physically grown.
+The real CKA exam curriculum references the `csi-hostpath-driver` for this style of question. This simulator has no CSI driver pre-installed cluster-wide (by design - see `docs/how-to-add-new-labs.md` conventions), so this lab uses kind's built-in `rancher.io/local-path` provisioner instead, which supports the same dynamic-provisioning and `allowVolumeExpansion` mechanics needed to complete the task. Also note `rancher.io/local-path` does not actually perform live filesystem expansion the way some CSI drivers do - verification here (matching the real exam's own grading behavior) only checks that the PVC's **declared/requested** size was patched to `70Mi`, not that the underlying hostPath filesystem was physically grown.
 
 `volumeBindingMode: WaitForFirstConsumer` is required on the StorageClass - unlike some CSI drivers, `rancher.io/local-path` needs to know which node the consuming Pod lands on before it can create the volume, and errors with "no node was specified" (leaving the PVC stuck `Pending` forever) under the default `Immediate` binding mode. This is a real, confirmed requirement of this environment, not just a style preference.
 

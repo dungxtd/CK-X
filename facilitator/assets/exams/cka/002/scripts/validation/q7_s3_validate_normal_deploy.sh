@@ -39,8 +39,8 @@ fi
 PODS=$(kubectl get pods -n scheduling -l app=normal-deploy -o jsonpath='{.items[*].metadata.name}')
 for POD in $PODS; do
     NODE=$(kubectl get pod $POD -n scheduling -o jsonpath='{.spec.nodeName}')
-    if [[ "$NODE" == "k3d-cluster-agent-1" ]]; then
-        echo "Pod $POD is scheduled on tainted node k3d-cluster-agent-1"
+    if [[ "$NODE" == "k8s-worker2" ]]; then
+        echo "Pod $POD is scheduled on tainted node k8s-worker2"
         exit 1
     fi
 done

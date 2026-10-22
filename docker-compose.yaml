@@ -155,12 +155,12 @@ services:
       - "2379"
     volumes:
       - kube-config:/home/candidate/.kube # Shared volume for Kubernetes config
-      - dind-data:/var/lib/docker # Keep k3s images and the registry cache across recreates
+      - dind-data:/var/lib/docker # Keep kind node images and the registry caches across recreates
     deploy:
       resources:
         limits:
-          cpus: "2"
-          memory: 4G
+          cpus: "4"
+          memory: 6G # kind (kubeadm) nodes: roughly 0.7G per control plane, 0.3G per worker
         reservations:
           cpus: "1"
           memory: 2G

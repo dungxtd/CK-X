@@ -1,0 +1,6 @@
+# Pull through the local cache started by entrypoint.sh; containerd falls
+# back to the upstream server when the cache is unreachable.
+server = "https://ghcr.io"
+
+[host."http://ghcr-io-mirror:5000"]
+  capabilities = ["pull", "resolve"]

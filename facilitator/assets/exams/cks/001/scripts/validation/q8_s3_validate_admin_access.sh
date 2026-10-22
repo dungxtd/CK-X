@@ -6,6 +6,7 @@ RESTRICTED_POD="restricted-pod"
 
 echo "🔍 Getting Kubernetes API Server IP..."
 API_SERVER_IP=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].addresses[0].ip}')
+API_SERVER_PORT=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].ports[0].port}')
 if [ -z "$API_SERVER_IP" ]; then
   echo "❌ Could not find API server IP"
   exit 1
@@ -41,7 +42,7 @@ test_connectivity() {
 
   echo "🚀 Testing connectivity from '$pod_name' to API server..."
 
-  kubectl exec -n "$NAMESPACE" "$pod_name" -- nc -z -w2 "$API_SERVER_IP" 443 &> /dev/null
+  kubectl exec -n "$NAMESPACE" "$pod_name" -- nc -z -w2 "$API_SERVER_IP" "$API_SERVER_PORT" &> /dev/null
   result=$?
 
   if [ $expect_success -eq 1 ] && [ $result -eq 0 ]; then

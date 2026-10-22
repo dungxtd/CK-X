@@ -1,152 +1,147 @@
 #!/bin/sh
 exec >> /proc/1/fd/1 2>&1
 # ===============================================================================
-#   K3D Cluster Creation
-#   Usage:   env-setup [--workers N] [--name NAME] [--profile PROFILE]
-#   Example: env-setup --workers 3 --name cluster --profile etcd
-#   PROFILE is a k3d config in $PROFILE_DIR (default, etcd)
+#   Exam cluster creation (kind / kubeadm)
+#   Usage:   env-setup --cluster NAME:WORKERS [--cluster NAME:WORKERS ...]
+#   Example: env-setup --cluster k8s:2 --cluster k8s-b:1
+#
+#   Each cluster gets a kubeconfig context named after it (the first one is
+#   current), and every node is reachable over ssh by its node name from the
+#   jumphost. Host ports on k8s-api-server for cluster N (0-based):
+#     API 6443+N, etcd 2379+N, node ssh 2200+10*N+i (i=0 control plane)
 # ===============================================================================
 
-NUM_WORKERS=0
-CLUSTER_NAME=cluster
-PROFILE=default
-PROFILE_DIR=/usr/local/share/k3d-profiles
+. /etc/ckx.env
+KUBE_DIR=/home/candidate/.kube
+SHARE=/usr/local/share/ckx
+CLUSTERS=""
+
+log() { echo "$(date '+%Y-%m-%d %H:%M:%S') | $1"; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
-        --workers) NUM_WORKERS=$2; shift 2 ;;
-        --name)    CLUSTER_NAME=$2; shift 2 ;;
-        --profile) PROFILE=$2; shift 2 ;;
-        *) echo "Unknown argument: $1"; exit 1 ;;
+        --cluster) CLUSTERS="$CLUSTERS $2"; shift 2 ;;
+        *) log "ERROR: unknown argument: $1"; exit 1 ;;
     esac
 done
 
-case "$NUM_WORKERS" in
-    ''|*[!0-9]*) echo "ERROR: --workers must be a non-negative integer"; exit 1 ;;
-esac
+[ -n "$CLUSTERS" ] || { log "ERROR: at least one --cluster NAME:WORKERS is required"; exit 1; }
+for spec in $CLUSTERS; do
+    case "$spec" in
+        [a-z]*:[0-9]) ;;
+        *) log "ERROR: invalid --cluster '$spec' (NAME:WORKERS, 0-9 workers)"; exit 1 ;;
+    esac
+    case "${spec%%:*}" in
+        *[!a-z0-9-]*) log "ERROR: invalid cluster name in '$spec'"; exit 1 ;;
+    esac
+done
 
-PROFILE_FILE="$PROFILE_DIR/$PROFILE.yaml"
-case "$PROFILE" in
-    ''|*[!a-z0-9-]*) echo "ERROR: invalid profile '$PROFILE'"; exit 1 ;;
-esac
-if [ ! -f "$PROFILE_FILE" ]; then
-    echo "ERROR: unknown profile '$PROFILE' (no $PROFILE_FILE)"
-    exit 1
-fi
-
-# Check if k3d is installed, if not install it
-if ! command -v k3d &> /dev/null; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | k3d not found. Attempting installation..."
-    
-    # Retry k3d installation up to 5 times
-    INSTALL_ATTEMPTS=0
-    while [ $INSTALL_ATTEMPTS -lt 99999 ]; do
-        INSTALL_ATTEMPTS=$((INSTALL_ATTEMPTS+1))
-        echo "$(date '+%Y-%m-%d %H:%M:%S') | Installation attempt $INSTALL_ATTEMPTS"
-        
-        # Use the same installation method as in entrypoint.sh
-        TAG=v5.8.3 bash /usr/local/bin/k3d-install.sh
-        
-        # Check if installation was successful
-        if command -v k3d &> /dev/null; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') | k3d successfully installed"
-            break
-        else
-            echo "$(date '+%Y-%m-%d %H:%M:%S') | k3d installation failed. Retrying in 10 seconds..."
-            sleep 10
-        fi
+# kind config for one cluster: $1 name, $2 workers, $3 index
+kind_config() {
+    cat <<EOF
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "0.0.0.0"
+  apiServerPort: $((6443 + $3))
+containerdConfigPatches:
+  - |-
+    [plugins."io.containerd.cri.v1.images".registry]
+      config_path = "/etc/containerd/certs.d"
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: ClusterConfiguration
+        apiServer:
+          certSANs: ["k8s-api-server"]
+        etcd:
+          local:
+            serverCertSANs: ["k8s-api-server"]
+    extraPortMappings:
+      - { containerPort: 2379, hostPort: $((2379 + $3)) }
+      - { containerPort: 22, hostPort: $((2200 + 10 * $3)) }
+    extraMounts:
+      - { hostPath: $SHARE/certs.d, containerPath: /etc/containerd/certs.d, readOnly: true }
+EOF
+    i=1
+    while [ $i -le "$2" ]; do
+        cat <<EOF
+  - role: worker
+    extraPortMappings:
+      - { containerPort: 22, hostPort: $((2200 + 10 * $3 + i)) }
+    extraMounts:
+      - { hostPath: $SHARE/certs.d, containerPath: /etc/containerd/certs.d, readOnly: true }
+EOF
+        i=$((i + 1))
     done
-    
-    # If k3d still not installed after 5 attempts, exit with error
-    if ! command -v k3d &> /dev/null; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') | ERROR: Failed to install k3d after 5 attempts"
-        exit 1
+}
+
+# Clusters from an exam that was never cleaned up survive restarts on the
+# dind-data volume; start from a clean slate
+for old in $(kind get clusters 2>/dev/null); do
+    log "Deleting leftover cluster '$old'"
+    kind delete cluster --name "$old"
+done
+rm -rf "$KUBE_DIR/kubeconfig" "$KUBE_DIR/etcd-certs" "$KUBE_DIR/ssh_config" "$KUBE_DIR"/clusters
+mkdir -p "$KUBE_DIR/clusters"
+
+# Create all clusters in parallel
+index=0
+for spec in $CLUSTERS; do
+    name=${spec%%:*}; workers=${spec#*:}
+    log "Creating cluster '$name' (1 control plane + $workers workers)"
+    kind_config "$name" "$workers" "$index" > "/tmp/kind-$name.yaml"
+    kind create cluster --name "$name" --image "$CKX_NODE_IMAGE" \
+        --config "/tmp/kind-$name.yaml" --wait 120s > "/tmp/kind-$name.log" 2>&1 &
+    echo $! > "/tmp/kind-$name.pid"
+    index=$((index + 1))
+done
+
+FAILED=0
+for spec in $CLUSTERS; do
+    name=${spec%%:*}
+    if wait "$(cat "/tmp/kind-$name.pid")"; then
+        log "Cluster '$name' created"
+    else
+        log "ERROR: creating cluster '$name' failed:"; cat "/tmp/kind-$name.log"
+        FAILED=1
     fi
-fi
+done
+[ "$FAILED" = 0 ] || exit 1
 
+# Per-cluster kubeconfig (API via k8s-api-server, context named after the
+# cluster), ssh aliases for every node, and metrics-server
+index=0
+for spec in $CLUSTERS; do
+    name=${spec%%:*}
+    kind get kubeconfig --name "$name" \
+        | sed -e "s|https://0.0.0.0:|https://k8s-api-server:|" -e "s/kind-$name/$name/g" \
+        > "$KUBE_DIR/clusters/$name"
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Creating K3d cluster with configuration..."
-echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Name:  $CLUSTER_NAME"
-echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Profile: $PROFILE_FILE"
-echo "$(date '+%Y-%m-%d %H:%M:%S') | └── Number of nodes: $((NUM_WORKERS + 1)) (1 server + $NUM_WORKERS agents)"
-
-# Create k3d cluster
-# /var/lib/docker is a volume, so a cluster from an exam that was never
-# cleaned up survives restarts; replace it instead of failing to create
-if k3d cluster get "$CLUSTER_NAME" > /dev/null 2>&1; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | Deleting leftover cluster '$CLUSTER_NAME'"
-    k3d cluster delete "$CLUSTER_NAME"
-fi
-
-# The registry cache stays attached to the cluster network, so "k3d cluster
-# delete" leaves the network behind. k3d would re-use it without static IPs
-# (breaking the etcd profile after restarts), so let k3d create a fresh one.
-NETWORK="k3d-$CLUSTER_NAME"
-if docker network inspect "$NETWORK" > /dev/null 2>&1; then
-    for c in $(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "$NETWORK"); do
-        docker network disconnect -f "$NETWORK" "$c"
+    for node in $(kind get nodes --name "$name" | sort); do
+        case "$node" in
+            *-control-plane) port=$((2200 + 10 * index)) ;;
+            *-worker) port=$((2200 + 10 * index + 1)) ;;
+            *) port=$((2200 + 10 * index + ${node##*-worker})) ;;
+        esac
+        printf 'Host %s\n  HostName k8s-api-server\n  Port %s\n  User root\n\n' "$node" "$port" \
+            >> "$KUBE_DIR/ssh_config"
     done
-    docker network rm "$NETWORK" > /dev/null
-fi
 
-# Pull images through the local caches that are up (see entrypoint.sh)
-REGISTRY_ARGS=""
-for registry in $(docker ps --filter label=k3d.role=registry --format '{{.Names}}'); do
-    REGISTRY_ARGS="$REGISTRY_ARGS --registry-use $registry:5000"
-done
-if [ -n "$REGISTRY_ARGS" ]; then
-    REGISTRY_ARGS="$REGISTRY_ARGS --registry-config /usr/local/share/k3d-registries.yaml"
-fi
-
-k3d cluster create "$CLUSTER_NAME" --config "$PROFILE_FILE" --agents "$NUM_WORKERS" $REGISTRY_ARGS
-
-# ===============================================================================
-#   Cluster Readiness Check
-# ===============================================================================
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Verifying cluster status..."
-CLUSTER_CHECK_COUNT=0
-
-# Wait for k3d cluster to be ready
-while ! k3d cluster list | grep -q "$CLUSTER_NAME"; do
-    CLUSTER_CHECK_COUNT=$((CLUSTER_CHECK_COUNT+1))
-    echo "$(date '+%Y-%m-%d %H:%M:%S') | [WAITING] K3d cluster '$CLUSTER_NAME' not ready yet... (attempt $CLUSTER_CHECK_COUNT)"
-    sleep 5
+    docker exec -i "$name-control-plane" kubectl --kubeconfig /etc/kubernetes/admin.conf \
+        apply -f - < "$SHARE/metrics-server.yaml" > /dev/null
+    index=$((index + 1))
 done
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') | ✅ K3d cluster '$CLUSTER_NAME' is up and running!"
+KUBECONFIG=$(ls "$KUBE_DIR"/clusters/* | tr '\n' ':') kubectl config view --flatten > "$KUBE_DIR/kubeconfig"
+FIRST=$(echo $CLUSTERS | cut -d' ' -f1); FIRST=${FIRST%%:*}
+kubectl --kubeconfig "$KUBE_DIR/kubeconfig" config use-context "$FIRST" > /dev/null
+rm -rf "$KUBE_DIR/clusters"
 
-if [ "$PROFILE" = "etcd" ]; then
-    etcd-export-certs "$CLUSTER_NAME"
-    # Only the server has a static IP; agents/serverlb take dynamic ones and can
-    # grab it if dockerd restarts them first. Keep them down on daemon restart,
-    # entrypoint.sh starts them after the server via "k3d cluster start".
-    docker update --restart=no $(docker ps -aq \
-        --filter "label=k3d.cluster=$CLUSTER_NAME" --filter "label=k3d.role=agent") \
-        "k3d-$CLUSTER_NAME-serverlb" > /dev/null
-fi
+# etcd client certs of the first cluster for etcdctl on the jumphost
+etcd-export-certs "$FIRST-control-plane"
 
-# ===============================================================================
-#   Setup Complete
-# ===============================================================================
-
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Docker and KIND environment is ready for use"
-
-k3d kubeconfig get $CLUSTER_NAME > /home/candidate/.kube/kubeconfig
-echo "Kubeconfig file created: /home/candidate/.kube/kubeconfig"
-
-# Save kubeconfig and set API server address
-sed -i 's|server: https://127\.0\.0\.1:\([0-9]*\)|server: https://k8s-api-server:\1|' /home/candidate/.kube/kubeconfig
-
-echo "Kubeconfig file content:"
-cat /home/candidate/.kube/kubeconfig
-
-export KUBECONFIG=/home/candidate/.kube/kubeconfig
-
-#info on config file setup done 
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Config file setup done"
-
-#info on cluster setup done 
-echo "$(date '+%Y-%m-%d %H:%M:%S') | Cluster setup done"
-
+chmod 644 "$KUBE_DIR/kubeconfig" "$KUBE_DIR/ssh_config"
+log "Cluster setup done: $(kubectl --kubeconfig "$KUBE_DIR/kubeconfig" config get-contexts -o name | tr '\n' ' ')"
 exit 0

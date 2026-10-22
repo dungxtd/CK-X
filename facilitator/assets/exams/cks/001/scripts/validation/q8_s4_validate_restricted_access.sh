@@ -27,7 +27,8 @@ fi
 
 # Test if the pod can access the API server - it should fail due to NetworkPolicy
 API_SERVER_IP=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].addresses[0].ip}')
-TEST_RESULT=$(kubectl exec -n $NAMESPACE $POD_NAME -- wget -T 3 -q -O- "https://$API_SERVER_IP:443" 2>&1)
+API_SERVER_PORT=$(kubectl get endpoints kubernetes -o jsonpath='{.subsets[0].ports[0].port}')
+TEST_RESULT=$(kubectl exec -n $NAMESPACE $POD_NAME -- wget -T 3 -q -O- "https://$API_SERVER_IP:$API_SERVER_PORT" 2>&1)
 
 if ! echo "$TEST_RESULT" | grep -q "Connection refused\|timed out\|Unable to connect"; then
   echo "❌ Restricted pod can access API server when it should be blocked"

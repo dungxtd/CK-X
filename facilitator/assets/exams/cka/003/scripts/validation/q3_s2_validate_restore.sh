@@ -2,7 +2,7 @@
 set -e
 
 # NOTE: this environment has no node-level access to swap a restored data directory
-# into the live etcd/k3s server process, so this check can only confirm that
+# into the live etcd static pod, so this check can only confirm that
 # `etcdctl snapshot restore` produced a structurally valid etcd data directory -
 # it does NOT (and cannot) verify the restored data was live-applied to the cluster.
 

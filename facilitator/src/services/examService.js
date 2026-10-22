@@ -52,14 +52,14 @@ async function createExam(examData) {
     
     logger.info(`Exam created successfully with ID: ${examId}`);
     
-    // Determine number of nodes required for the exam (default to 1 if not specified)
-    const nodeCount = examData.config.workerNodes || 1;
-    // k3d cluster profile for the lab (kind-cluster/k3d/<name>.yaml)
-    const clusterProfile = examData.config.clusterProfile || 'default';
+    // Clusters the lab runs on: "clusters": [{ "name", "workers" }], or a
+    // single "k8s" cluster with "workerNodes" workers (default 1)
+    const clusters = examData.config.clusters
+      || [{ name: 'k8s', workers: examData.config.workerNodes || 1 }];
     
     // Set up the exam environment asynchronously
     // This will happen in the background while the response is sent back to the client
-    setupExamEnvironmentAsync(examId, nodeCount, clusterProfile);
+    setupExamEnvironmentAsync(examId, clusters);
     
     // send metrics to metric server
     MetricService.sendMetrics(examId, {
@@ -94,12 +94,12 @@ async function createExam(examData) {
  * This function runs in the background and doesn't block the response
  * 
  * @param {string} examId - The exam ID
- * @param {number} nodeCount - Number of nodes to prepare
+ * @param {Array<{name: string, workers: number}>} clusters - Clusters to create
  */
-async function setupExamEnvironmentAsync(examId, nodeCount, clusterProfile) {
+async function setupExamEnvironmentAsync(examId, clusters) {
   try {
     // Call the jumphost service to set up the exam environment
-    const result = await jumphostService.setupExamEnvironment(examId, nodeCount, clusterProfile);     
+    const result = await jumphostService.setupExamEnvironment(examId, clusters);     
     
     if (!result.success) {
       logger.error(`Failed to set up exam environment for exam ${examId}`, {

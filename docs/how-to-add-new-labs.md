@@ -69,7 +69,7 @@ Create a `config.json` file in your lab directory with the following structure:
 Parameters:
 - `lab`: Unique identifier for the lab (should match directory structure)
 - `workerNodes`: Number of worker nodes required for this lab
-- `clusterProfile` (optional): k3d cluster profile from `kind-cluster/k3d/` (`<name>.yaml`). Defaults to `default` (k3s on SQLite). Use `etcd` for labs that need a real etcd (backup/restore with `etcdctl`)
+- `clusters` (optional): clusters the lab runs on, for exam-style multi-cluster labs, e.g. `[{"name": "k8s", "workers": 2}, {"name": "k8s-b", "workers": 1}]`. Each cluster is a kind (kubeadm) cluster with one control plane, a kubeconfig context named after it (the first is current) and nodes named `<name>-control-plane`, `<name>-worker`, `<name>-worker2`, ...; the candidate can `ssh <node>` from the jumphost. Without `clusters`, the lab gets one cluster `k8s` with `workerNodes` workers. Questions on another cluster set `"context": "<name>"` in `assessment.json`, which the UI shows as `kubectl config use-context <name>`; their setup/validation scripts should pass `--context <name>` to kubectl
 - `answers`: Path to answers markdown file
 - `questions`: sessment JSON filename
 - `totalMarks`: Maximum possible score

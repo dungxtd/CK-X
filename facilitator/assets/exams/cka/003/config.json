@@ -1,7 +1,6 @@
 {
   "lab": "cka-003",
   "workerNodes": 3,
-  "clusterProfile": "etcd",
   "answers": "assets/exams/cka/003/answers.md",
   "questions": "assessment.json",
   "totalMarks": 100,

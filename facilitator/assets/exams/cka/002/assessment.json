@@ -64,7 +64,7 @@
       "id": "3",
       "namespace": "manual-storage",
       "machineHostname": "ckad9999",
-      "question": "Create a PersistentVolume named `manual-pv` with the following specifications:\n\n- Storage: `1Gi`\n- Access Mode: `ReadWriteOnce`\n- Host Path: `/mnt/data`\n- Node Affinity: Must run on node `k3d-cluster-agent-0`\n\nThen create a PersistentVolumeClaim named `manual-pvc` that binds to this PV.\n\nFinally, create a Pod named `manual-pod` using the `busybox` image that mounts this PVC at `/data` and runs the command `sleep 3600`. ",
+      "question": "Create a PersistentVolume named `manual-pv` with the following specifications:\n\n- Storage: `1Gi`\n- Access Mode: `ReadWriteOnce`\n- Host Path: `/mnt/data`\n- Node Affinity: Must run on node `k8s-worker`\n\nThen create a PersistentVolumeClaim named `manual-pvc` that binds to this PV.\n\nFinally, create a Pod named `manual-pod` using the `busybox` image that mounts this PVC at `/data` and runs the command `sleep 3600`. ",
       "concepts": ["storage", "persistent-volumes", "node-affinity"],
       "verification": [
         {
@@ -124,7 +124,7 @@
       "id": "5",
       "namespace": "scheduling",
       "machineHostname": "ckad9999",
-      "question": "Create a deployment named `app-scheduling` with `3` replicas using the `nginx` image that must only run on node `k3d-cluster-agent-1` using node affinity (not node selector).\n\nRequirements:\n- Use `requiredDuringSchedulingIgnoredDuringExecution`\n- Match the node by its hostname\n- Label the target node with `disk=ssd` before creating the deployment",
+      "question": "Create a deployment named `app-scheduling` with `3` replicas using the `nginx` image that must only run on node `k8s-worker2` using node affinity (not node selector).\n\nRequirements:\n- Use `requiredDuringSchedulingIgnoredDuringExecution`\n- Match the node by its hostname\n- Label the target node with `disk=ssd` before creating the deployment",
       "concepts": ["scheduling", "node-affinity", "deployments"],
       "verification": [
         {
@@ -177,7 +177,7 @@
       "id": "7",
       "namespace": "scheduling",
       "machineHostname": "ckad9999",
-      "question": "Configure node `k3d-cluster-agent-1` with a taint `key=special-workload`, `value=true` and `effect=NoSchedule`.\n\nThen create a deployment named `toleration-deploy` with `2` replicas using the `nginx` image that can tolerate this taint.\n\nFinally, create another deployment named `normal-deploy` with `2` replicas that should not run on the tainted node.",
+      "question": "Configure node `k8s-worker2` with a taint `key=special-workload`, `value=true` and `effect=NoSchedule`.\n\nThen create a deployment named `toleration-deploy` with `2` replicas using the `nginx` image that can tolerate this taint.\n\nFinally, create another deployment named `normal-deploy` with `2` replicas that should not run on the tainted node.",
       "concepts": ["scheduling", "taints", "tolerations"],
       "verification": [
         {

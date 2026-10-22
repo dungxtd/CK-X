@@ -5,8 +5,8 @@ set -e
 kubectl create namespace scheduling --dry-run=client -o yaml | kubectl apply -f -
 
 # Ensure the node exists
-kubectl get node k3d-cluster-agent-0 || {
-  echo "Required node k3d-cluster-agent-0 not found"
+kubectl get node k8s-worker || {
+  echo "Required node k8s-worker not found"
   exit 1
 }
 

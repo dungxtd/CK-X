@@ -64,6 +64,12 @@ function generateQuestionContent(question) {
         // Get original data
         const originalData = question.originalData || {};
         const machineHostname = originalData.machineHostname || 'N/A';
+        // Labs with several clusters name the kubeconfig context per question
+        const contextLine = originalData.context
+            ? `<div class="mb-3">
+                        <strong>Set the context:</strong> <span class="inline-code">kubectl config use-context ${originalData.context}</span>
+                    </div>`
+            : '';
         const namespace = originalData.namespace || 'N/A';
         const concepts = originalData.concepts || [];
         const conceptsString = concepts.join(', ');
@@ -79,6 +85,7 @@ function generateQuestionContent(question) {
                     <div class="mb-3">
                         <strong>Solve this question on instance:</strong> <span class="inline-code">ssh ${machineHostname}</span></span>
                     </div>
+                    ${contextLine}
                     
                     <div class="mb-3">
                         <strong>Namespace:</strong> <span class="text-primary">${namespace}</span>

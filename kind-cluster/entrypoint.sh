@@ -1,8 +1,8 @@
 #!/bin/sh
 
 # ===============================================================================
-#   KIND Cluster Setup Entrypoint Script
-#   Purpose: Initialize Docker and create Kind cluster
+#   Exam cluster host entrypoint
+#   Purpose: start dockerd, the registry caches and any existing kind clusters
 # ===============================================================================
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') | ===== INITIALIZATION STARTED ====="
@@ -31,39 +31,43 @@ done
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') | [SUCCESS] Docker service is ready and operational"
 
-#pull kindest/node image
-# docker pull kindest/node:$KIND_DEFAULT_VERSION
-
 #add user for ssh access
 adduser -S -D -H -s /sbin/nologin -G sshd sshd
 
 #start ssh service
 /usr/sbin/sshd -D &
 
-#install k3d
-echo "$(date '+%Y-%m-%d %H:%M:%S') | [INFO] Installing k3d"
-TAG=v5.8.3 bash /usr/local/bin/k3d-install.sh
+# kind attaches every cluster to this network; create it up front so the
+# registry caches can join it before the first cluster exists
+docker network inspect kind > /dev/null 2>&1 || docker network create kind
 
 # Pull-through caches shared by every exam cluster, so images are downloaded
 # once instead of on every node of every exam (one registry per upstream,
-# mirrors mapped in /usr/local/share/k3d-registries.yaml). Best effort:
-# env-setup only uses the ones that are running.
-while read -r name port upstream; do
-    k3d registry list "$name" > /dev/null 2>&1 && continue
-    k3d registry create "$name" --port "0.0.0.0:$port" --no-help \
-        --proxy-remote-url "$upstream" -v "$name:/var/lib/registry" \
-        || echo "$(date '+%Y-%m-%d %H:%M:%S') | [WARN] could not create $name, pulling $upstream directly"
+# mapped in /usr/local/share/ckx/certs.d). Best effort: containerd pulls
+# from upstream when a cache is down.
+while read -r name upstream; do
+    docker container inspect "$name" > /dev/null 2>&1 && continue
+    docker run -d --name "$name" --restart=always --network kind \
+        -e "REGISTRY_PROXY_REMOTEURL=$upstream" -v "$name:/var/lib/registry" registry:2 > /dev/null \
+        || echo "$(date '+%Y-%m-%d %H:%M:%S') | [WARN] could not start $name, pulling $upstream directly"
 done <<EOF
-docker-io-mirror 5000 https://registry-1.docker.io
-registry-k8s-io-mirror 5001 https://registry.k8s.io
-ghcr-io-mirror 5002 https://ghcr.io
-quay-io-mirror 5003 https://quay.io
+docker-io-mirror https://registry-1.docker.io
+registry-k8s-io-mirror https://registry.k8s.io
+ghcr-io-mirror https://ghcr.io
+quay-io-mirror https://quay.io
 EOF
 
-# Bring back clusters that survived a container restart. k3d starts servers
-# before agents, which etcd-profile clusters rely on (see env-setup).
-for cluster in $(k3d cluster list --no-headers 2>/dev/null | awk '{print $1}'); do
-    k3d cluster start "$cluster"
+# Exam node image (kind node + sshd), built once and kept on the volume
+if ! docker image inspect "$CKX_NODE_IMAGE" > /dev/null 2>&1; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | [INFO] Building $CKX_NODE_IMAGE"
+    docker build -q -t "$CKX_NODE_IMAGE" --build-arg "BASE=$KIND_NODE_IMAGE" /usr/local/share/ckx/node
+fi
+
+# Bring back clusters that survived a container restart: control planes
+# first, then workers (kind re-points nodes at their new IPs on boot)
+for role in control-plane worker; do
+    nodes=$(docker ps -aq --filter label=io.x-k8s.kind.role=$role)
+    [ -n "$nodes" ] && docker start $nodes > /dev/null
 done
 
 sleep 10

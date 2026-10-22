@@ -1,53 +1,20 @@
-#!/bin/bash
+#!/bin/sh
 exec >> /proc/1/fd/1 2>&1
+# ===============================================================================
+#   Delete every exam cluster and the files env-setup shared with the jumphost.
+#   Node images and the registry caches are kept for the next exam.
+#   Usage: env-cleanup
+# ===============================================================================
 
-# Cleanup script to remove the K3d cluster
+for cluster in $(kind get clusters 2>/dev/null); do
+    kind delete cluster --name "$cluster"
+done
 
-CLUSTER_NAME=${1:-cluster}
+# Anonymous volumes and dangling images left by the deleted nodes
+docker volume prune -f > /dev/null
+docker image prune -f > /dev/null
 
-# Check if CLUSTER_NAME is set
-if [ -z "$CLUSTER_NAME" ]; then
-    echo "CLUSTER_NAME is not set"
-    exit 1
-fi
+rm -rf /home/candidate/.kube/kubeconfig /home/candidate/.kube/etcd-certs /home/candidate/.kube/ssh_config
 
-# Check if the K3d cluster is running
-if k3d cluster list | grep -q "$CLUSTER_NAME"; then
-    # Delete the K3d cluster
-    k3d cluster delete "$CLUSTER_NAME"
-
-    # Wait until the cluster is fully deleted
-    while k3d cluster list | grep -q "$CLUSTER_NAME"; do
-        sleep 1
-    done
-
-    echo "K3d cluster '$CLUSTER_NAME' has been deleted."
-else
-    echo "K3d cluster '$CLUSTER_NAME' is not running."
-    exit 0
-fi
-
-# Perform a full Docker system prune (removes all unused containers, networks, images, and build cache)
-# This does NOT remove K3d images, unless you manually want to
-docker volume prune -f 
-docker network prune -f
-docker image prune -f --filter "label!=ghcr.io/k3d-io"
-echo "Docker system cleaned up."
-
-# Delete K3d config file if present
-if [ -f "/tmp/k3d-config.yaml" ]; then
-    rm -f /tmp/k3d-config.yaml
-    echo "K3d config file deleted."
-fi
-
-# Delete kubeconfig file if present in /home/candidate/.kube/kubeconfig (adjust path if needed)
-if [ -f "/home/candidate/.kube/kubeconfig" ]; then
-    rm -f /home/candidate/.kube/kubeconfig
-    echo "Kubeconfig file deleted."
-fi
-
-# etcd client certs exported for the etcd cluster profile
-rm -rf /home/candidate/.kube/etcd-certs
-
-echo "Cleanup completed."
+echo "$(date '+%Y-%m-%d %H:%M:%S') | Cleanup completed."
 exit 0

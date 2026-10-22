@@ -54,7 +54,7 @@ volumeBindingMode: WaitForFirstConsumer
 Commands to remove default from other StorageClass:
 ```bash
 kubectl patch storageclass default-test -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
-kubectl patch storageclass local-path -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
+kubectl patch storageclass standard -p '{"metadata": {"annotations": {"storageclass.kubernetes.io/is-default-class": "false"}}}'
 ```
 
 ## Question 3: Manual Storage Configuration
@@ -79,7 +79,7 @@ spec:
         - key: kubernetes.io/hostname
           operator: In
           values:
-          - k3d-cluster-agent-0
+          - k8s-worker
 ---
 apiVersion: v1
 kind: PersistentVolumeClaim
@@ -163,7 +163,7 @@ spec:
 ### Solution
 ```bash
 # Label the node
-kubectl label node k3d-cluster-agent-1 disk=ssd
+kubectl label node k8s-worker2 disk=ssd
 ```
 
 ```yaml
@@ -234,7 +234,7 @@ spec:
 
 ### Solution
 ```bash
-kubectl taint node k3d-cluster-agent-1 special-workload=true:NoSchedule
+kubectl taint node k8s-worker2 special-workload=true:NoSchedule
 ```
 
 ```yaml

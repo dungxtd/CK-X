@@ -29,7 +29,7 @@ describe('Jumphost Service', () => {
       });
 
       // Call the function
-      const result = await jumphostService.setupExamEnvironment('test-exam-id', 2);
+      const result = await jumphostService.setupExamEnvironment('test-exam-id', [{ name: 'k8s', workers: 2 }]);
 
       // Verify Redis status updates
       expect(redisClient.persistExamStatus).toHaveBeenCalledTimes(2);
@@ -37,7 +37,7 @@ describe('Jumphost Service', () => {
       expect(redisClient.persistExamStatus).toHaveBeenNthCalledWith(2, 'test-exam-id', 'READY');
 
       // Verify SSH command execution
-      expect(sshService.executeCommand).toHaveBeenCalledWith('prepare-exam-env --nodes 2 --exam-id test-exam-id --profile default');
+      expect(sshService.executeCommand).toHaveBeenCalledWith('prepare-exam-env --exam-id test-exam-id --cluster k8s:2');
 
       // Verify result
       expect(result).toEqual({

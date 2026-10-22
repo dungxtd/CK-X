@@ -18,25 +18,26 @@ const MetricService = require('./metricService');
  * Prepare the exam environment on the jumphost
  * 
  * This method executes the "prepare-exam-env" command on the jumphost
- * to set up the required number of nodes for the exam. It also updates
+ * to create the exam clusters. It also updates
  * the exam status in Redis to reflect the preparation process.
  * 
  * @param {string} examId - The ID of the exam to prepare
- * @param {number} nodeCount - The number of nodes to prepare (default: 1)
- * @param {string} clusterProfile - k3d cluster profile name (default: 'default')
+ * @param {Array<{name: string, workers: number}>} clusters - Clusters to create
+ *   (default: one "k8s" cluster with 1 worker)
  * @returns {Promise<Object>} Result object with success status and data
  */
-async function setupExamEnvironment(examId, nodeCount = 1, clusterProfile = 'default') {
+async function setupExamEnvironment(examId, clusters = [{ name: 'k8s', workers: 1 }]) {
   try {
     // Update exam status to PREPARING
     await redisClient.persistExamStatus(examId, 'PREPARING');
-    logger.info(`Started preparing environment for exam ${examId} with ${nodeCount} nodes`);
+    const clusterArgs = clusters.map(c => `--cluster ${c.name}:${c.workers}`).join(' ');
+    logger.info(`Started preparing environment for exam ${examId}: ${clusterArgs}`);
     
     //restart vnc session
     await remoteDesktopService.restartVncSession();
 
     // Execute the prepare-exam-env command on the jumphost
-    const command = `prepare-exam-env --nodes ${nodeCount} --exam-id ${examId} --profile ${clusterProfile}`;
+    const command = `prepare-exam-env --exam-id ${examId} ${clusterArgs}`;
     
     logger.info(`Executing command on jumphost: ${command}`);
     const result = await sshService.executeCommand(command);

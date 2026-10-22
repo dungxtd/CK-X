@@ -1,0 +1,6 @@
+# Pull through the local cache started by entrypoint.sh; containerd falls
+# back to the upstream server when the cache is unreachable.
+server = "https://registry.k8s.io"
+
+[host."http://registry-k8s-io-mirror:5000"]
+  capabilities = ["pull", "resolve"]
