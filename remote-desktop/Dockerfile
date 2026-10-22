@@ -90,18 +90,8 @@ RUN curl -fsSL -o /tmp/novnc.tar.gz \
  && ln -sf vnc.html /usr/share/novnc/index.html \
  && rm -f /tmp/novnc.tar.gz
 
-# VSCodium. The .deb pulls its own Electron dependencies, and is published for
-# both architectures this image builds for.
-ENV VSCODIUM_VERSION=1.135.06055
-RUN arch="${TARGETARCH:-amd64}" \
- && curl -fsSL -o /tmp/codium.deb \
-      "https://github.com/VSCodium/vscodium/releases/download/${VSCODIUM_VERSION}/codium_${VSCODIUM_VERSION}_${arch}.deb" \
- && apt-get update && apt-get install -y --no-install-recommends /tmp/codium.deb \
- && rm -f /tmp/codium.deb \
- && rm -rf /var/lib/apt/lists/*
-
 # The desktop session runs as root out of /headless, the layout the previous
-# base image set up and that the panel and VSCodium config below rely on.
+# base image set up and that the panel config below relies on.
 RUN mkdir -p /headless/Desktop /headless/.vnc /dockerstartup \
  && cp /etc/skel/.bashrc /etc/skel/.profile /headless/ \
  && sed -i 's|^root:\(.*\):/root:|root:\1:/headless:|' /etc/passwd
@@ -122,20 +112,6 @@ RUN mkdir -p /home/candidate/.ssh \
  && echo "StrictHostKeyChecking no" >> /home/candidate/.ssh/config \
  && echo "UserKnownHostsFile /dev/null" >> /home/candidate/.ssh/config
 
-# launcher wrapper, application entry and desktop shortcut. The packaged
-# codium.desktop is replaced because it starts Electron directly as root; the
-# wrapper drops to the candidate user first.
-COPY config/codium-wrapper.sh /usr/local/bin/codium
-COPY config/vscodium.desktop /usr/share/applications/codium.desktop
-COPY config/vscodium.desktop /headless/Desktop/VSCodium.desktop
-RUN chmod +x /usr/local/bin/codium /headless/Desktop/VSCodium.desktop \
- && ln -sf /usr/local/bin/codium /usr/local/bin/code
-
-# default VSCodium settings. The editor always runs as candidate, so this is
-# the only profile that gets used.
-COPY config/vscodium-settings.json /home/candidate/.vscodium-data/User/settings.json
-RUN chown -R candidate:candidate /home/candidate/.vscodium-data
-
 # panel docked to the top of the screen, with window buttons (task switcher),
 # plus a dock at the bottom
 COPY config/xfce4-panel.xml /headless/.config/xfce4/xfconf/xfce-perchannel-xml/xfce4-panel.xml
@@ -143,7 +119,6 @@ COPY config/helpers.rc /headless/.config/xfce4/helpers.rc
 COPY config/launcher-8/thunar.desktop /headless/.config/xfce4/panel/launcher-8/thunar.desktop
 COPY config/launcher-9/terminal.desktop /headless/.config/xfce4/panel/launcher-9/terminal.desktop
 COPY config/launcher-10/firefox.desktop /headless/.config/xfce4/panel/launcher-10/firefox.desktop
-COPY config/launcher-11/vscodium.desktop /headless/.config/xfce4/panel/launcher-11/vscodium.desktop
 
 # VNC session entry point
 COPY config/xstartup /headless/.vnc/xstartup

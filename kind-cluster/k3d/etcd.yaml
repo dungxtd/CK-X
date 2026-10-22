@@ -27,6 +27,11 @@ options:
       - arg: "--tls-san=localhost"
         nodeFilters:
           - server:*
+      # No bundled ingress controller, as on the real exam; labs install
+      # ingress-nginx themselves when they need one
+      - arg: "--disable=traefik"
+        nodeFilters:
+          - server:*
       - arg: "--cluster-init"
         nodeFilters:
           - server:*
