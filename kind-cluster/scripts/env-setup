@@ -83,7 +83,7 @@ for old in $(kind get clusters 2>/dev/null); do
     log "Deleting leftover cluster '$old'"
     kind delete cluster --name "$old"
 done
-rm -rf "$KUBE_DIR/kubeconfig" "$KUBE_DIR/etcd-certs" "$KUBE_DIR/ssh_config" "$KUBE_DIR"/clusters
+rm -rf "$KUBE_DIR/kubeconfig" "$KUBE_DIR/config" "$KUBE_DIR/etcd-certs" "$KUBE_DIR/ssh_config" "$KUBE_DIR"/clusters
 mkdir -p "$KUBE_DIR/clusters"
 
 # Create all clusters in parallel
@@ -93,7 +93,7 @@ for spec in $CLUSTERS; do
     log "Creating cluster '$name' (1 control plane + $workers workers)"
     kind_config "$name" "$workers" "$index" > "/tmp/kind-$name.yaml"
     kind create cluster --name "$name" --image "$CKX_NODE_IMAGE" \
-        --config "/tmp/kind-$name.yaml" --wait 120s > "/tmp/kind-$name.log" 2>&1 &
+        --config "/tmp/kind-$name.yaml" --kubeconfig "/tmp/kind-$name.kubeconfig" --wait 120s > "/tmp/kind-$name.log" 2>&1 &
     echo $! > "/tmp/kind-$name.pid"
     index=$((index + 1))
 done
@@ -137,6 +137,8 @@ done
 KUBECONFIG=$(ls "$KUBE_DIR"/clusters/* | tr '\n' ':') kubectl config view --flatten > "$KUBE_DIR/kubeconfig"
 FIRST=$(echo $CLUSTERS | cut -d' ' -f1); FIRST=${FIRST%%:*}
 kubectl --kubeconfig "$KUBE_DIR/kubeconfig" config use-context "$FIRST" > /dev/null
+# Default kubeconfig location too, so kubectl works without KUBECONFIG
+ln -s kubeconfig "$KUBE_DIR/config"
 rm -rf "$KUBE_DIR/clusters"
 
 # etcd client certs of the first cluster for etcdctl on the jumphost

@@ -14,7 +14,7 @@ done
 docker volume prune -f > /dev/null
 docker image prune -f > /dev/null
 
-rm -rf /home/candidate/.kube/kubeconfig /home/candidate/.kube/etcd-certs /home/candidate/.kube/ssh_config
+rm -rf /home/candidate/.kube/kubeconfig /home/candidate/.kube/config /home/candidate/.kube/etcd-certs /home/candidate/.kube/ssh_config
 
 echo "$(date '+%Y-%m-%d %H:%M:%S') | Cleanup completed."
 exit 0
