@@ -1,0 +1,7 @@
+# containerd mirror config for k3d nodes (k3s registries.yaml).
+# Docker Hub pulls go through the local pull-through cache started by
+# entrypoint.sh; k3s falls back to docker.io itself if it is unreachable.
+mirrors:
+  "docker.io":
+    endpoint:
+      - http://k3d-docker-io-mirror:5000

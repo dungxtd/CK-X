@@ -23,6 +23,7 @@ RUN chmod +x /usr/local/bin/etcd-export-certs
 
 # k3d cluster profiles selected by env-setup --profile
 COPY k3d/ /usr/local/share/k3d-profiles/
+COPY registries.yaml /usr/local/share/k3d-registries.yaml
 
 ENV KIND_DEFAULT_VERSION=v1.32.3
 

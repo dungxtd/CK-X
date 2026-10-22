@@ -46,5 +46,8 @@ if [ -f "/home/candidate/.kube/kubeconfig" ]; then
     echo "Kubeconfig file deleted."
 fi
 
+# etcd client certs exported for the etcd cluster profile
+rm -rf /home/candidate/.kube/etcd-certs
+
 echo "Cleanup completed."
 exit 0

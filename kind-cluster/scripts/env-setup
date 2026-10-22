@@ -71,7 +71,31 @@ echo "$(date '+%Y-%m-%d %H:%M:%S') | ├── Profile: $PROFILE_FILE"
 echo "$(date '+%Y-%m-%d %H:%M:%S') | └── Number of nodes: $((NUM_WORKERS + 1)) (1 server + $NUM_WORKERS agents)"
 
 # Create k3d cluster
-k3d cluster create "$CLUSTER_NAME" --config "$PROFILE_FILE" --agents "$NUM_WORKERS"
+# /var/lib/docker is a volume, so a cluster from an exam that was never
+# cleaned up survives restarts; replace it instead of failing to create
+if k3d cluster get "$CLUSTER_NAME" > /dev/null 2>&1; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') | Deleting leftover cluster '$CLUSTER_NAME'"
+    k3d cluster delete "$CLUSTER_NAME"
+fi
+
+# The registry cache stays attached to the cluster network, so "k3d cluster
+# delete" leaves the network behind. k3d would re-use it without static IPs
+# (breaking the etcd profile after restarts), so let k3d create a fresh one.
+NETWORK="k3d-$CLUSTER_NAME"
+if docker network inspect "$NETWORK" > /dev/null 2>&1; then
+    for c in $(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "$NETWORK"); do
+        docker network disconnect -f "$NETWORK" "$c"
+    done
+    docker network rm "$NETWORK" > /dev/null
+fi
+
+# Pull Docker Hub images through the local cache when it is up (see entrypoint.sh)
+REGISTRY_ARGS=""
+if [ "$(docker inspect -f '{{.State.Running}}' k3d-docker-io-mirror 2>/dev/null)" = "true" ]; then
+    REGISTRY_ARGS="--registry-use k3d-docker-io-mirror:5000 --registry-config /usr/local/share/k3d-registries.yaml"
+fi
+
+k3d cluster create "$CLUSTER_NAME" --config "$PROFILE_FILE" --agents "$NUM_WORKERS" $REGISTRY_ARGS
 
 # ===============================================================================
 #   Cluster Readiness Check

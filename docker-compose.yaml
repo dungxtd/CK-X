@@ -155,6 +155,7 @@ services:
       - "2379"
     volumes:
       - kube-config:/home/candidate/.kube # Shared volume for Kubernetes config
+      - dind-data:/var/lib/docker # Keep k3s images and the registry cache across recreates
     deploy:
       resources:
         limits:
@@ -242,3 +243,4 @@ networks:
 
 volumes:
   kube-config: # Shared volume for Kubernetes configuration
+  dind-data: # Docker data of the k8s-api-server (dind) container
