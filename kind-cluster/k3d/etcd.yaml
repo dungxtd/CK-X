@@ -2,6 +2,8 @@
 # Cluster name and agent count are passed on the k3d command line by env-setup.
 apiVersion: k3d.io/v1alpha5
 kind: Simple
+# Kubernetes version of the exam cluster; keep in step with kubectl in jumphost/Dockerfile
+image: rancher/k3s:v1.35.9-k3s1
 servers: 1
 # etcd stores the server's peer URL by IP. A k3d-managed subnet gives every
 # node a static IP, so the server keeps its etcd membership across restarts.

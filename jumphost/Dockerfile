@@ -24,12 +24,14 @@ RUN apt-get update && apt-get install -y \
 ARG TARGETARCH
 
 #install kubectl for x86_64 and ARM64 architectures
+# Pinned to the exam cluster version (kind-cluster/k3d/*.yaml); kubectl supports +/-1 minor skew
+ENV KUBECTL_VERSION=v1.35.9
 RUN if [ "$TARGETARCH" = "amd64" ]; then \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
     && chmod +x kubectl \
     && mv kubectl /usr/local/bin/kubectl; \
     elif [ "$TARGETARCH" = "arm64" ]; then \
-    curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/arm64/kubectl" \
+    curl -LO "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/arm64/kubectl" \
     && chmod +x kubectl \
     && mv kubectl /usr/local/bin/kubectl; \
     fi
