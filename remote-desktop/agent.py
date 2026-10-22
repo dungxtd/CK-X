@@ -6,7 +6,9 @@ class RequestHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/restart-vnc-session':
             try:
-                subprocess.Popen("vncserver -kill :1 && vncserver :1", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # Start :1 even when it is not running (e.g. it crashed), so a
+                # failed kill must not skip the start
+                subprocess.Popen("vncserver -kill :1; vncserver :1", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 self.respond(200, {})
             except Exception as e:
                 self.respond(500, {"error": str(e)})
