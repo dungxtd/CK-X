@@ -89,10 +89,13 @@ if docker network inspect "$NETWORK" > /dev/null 2>&1; then
     docker network rm "$NETWORK" > /dev/null
 fi
 
-# Pull Docker Hub images through the local cache when it is up (see entrypoint.sh)
+# Pull images through the local caches that are up (see entrypoint.sh)
 REGISTRY_ARGS=""
-if [ "$(docker inspect -f '{{.State.Running}}' k3d-docker-io-mirror 2>/dev/null)" = "true" ]; then
-    REGISTRY_ARGS="--registry-use k3d-docker-io-mirror:5000 --registry-config /usr/local/share/k3d-registries.yaml"
+for registry in $(docker ps --filter label=k3d.role=registry --format '{{.Names}}'); do
+    REGISTRY_ARGS="$REGISTRY_ARGS --registry-use $registry:5000"
+done
+if [ -n "$REGISTRY_ARGS" ]; then
+    REGISTRY_ARGS="$REGISTRY_ARGS --registry-config /usr/local/share/k3d-registries.yaml"
 fi
 
 k3d cluster create "$CLUSTER_NAME" --config "$PROFILE_FILE" --agents "$NUM_WORKERS" $REGISTRY_ARGS

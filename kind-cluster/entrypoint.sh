@@ -44,15 +44,21 @@ adduser -S -D -H -s /sbin/nologin -G sshd sshd
 echo "$(date '+%Y-%m-%d %H:%M:%S') | [INFO] Installing k3d"
 TAG=v5.8.3 bash /usr/local/bin/k3d-install.sh
 
-# Docker Hub pull-through cache shared by every exam cluster, so images are
-# downloaded once instead of on every node of every exam. Best effort:
-# env-setup only uses it when it is running.
-if ! k3d registry list docker-io-mirror > /dev/null 2>&1; then
-    k3d registry create docker-io-mirror --port 0.0.0.0:5000 --no-help \
-        --proxy-remote-url https://registry-1.docker.io \
-        -v docker-io-mirror:/var/lib/registry \
-        || echo "$(date '+%Y-%m-%d %H:%M:%S') | [WARN] could not create the Docker Hub cache, pulling directly"
-fi
+# Pull-through caches shared by every exam cluster, so images are downloaded
+# once instead of on every node of every exam (one registry per upstream,
+# mirrors mapped in /usr/local/share/k3d-registries.yaml). Best effort:
+# env-setup only uses the ones that are running.
+while read -r name port upstream; do
+    k3d registry list "$name" > /dev/null 2>&1 && continue
+    k3d registry create "$name" --port "0.0.0.0:$port" --no-help \
+        --proxy-remote-url "$upstream" -v "$name:/var/lib/registry" \
+        || echo "$(date '+%Y-%m-%d %H:%M:%S') | [WARN] could not create $name, pulling $upstream directly"
+done <<EOF
+docker-io-mirror 5000 https://registry-1.docker.io
+registry-k8s-io-mirror 5001 https://registry.k8s.io
+ghcr-io-mirror 5002 https://ghcr.io
+quay-io-mirror 5003 https://quay.io
+EOF
 
 # Bring back clusters that survived a container restart. k3d starts servers
 # before agents, which etcd-profile clusters rely on (see env-setup).
